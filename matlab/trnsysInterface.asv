@@ -135,7 +135,7 @@ end
 
 mFileErrorCode = 140;   % Beginning of iterative call
 
-[ t, x, y ] = sim( "autoArrange", 10)
+[ t, x, y ] = sim( model, timespan, options, ut)
 % Do calculations here
 MyResults = MyInputs+12;
 

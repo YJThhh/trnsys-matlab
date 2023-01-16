@@ -1,0 +1,9 @@
+
+
+
+
+
+
+options=simset('SrcWorkspace','current');
+
+[T,X,Y] = sim('autoArrange',[], Options, UT)
