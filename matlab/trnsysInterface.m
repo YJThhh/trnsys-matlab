@@ -135,14 +135,29 @@ end
 
 mFileErrorCode = 140;   % Beginning of iterative call
 
-[ t, x, y ] = sim( "autoArrange", 10)
+
+Te_in = MyInputs(1);
+Ge_in = MyInputs(2);
+Tc_in = MyInputs(3);
+Gc_in = MyInputs(4);
+
+% trnTime (1x1)        : simulation time 
+% trnInfo (15x1)       : TRNSYS info array
+% trnInputs (nIx1)     : TRNSYS inputs 
+% trnStartTime (1x1)   : TRNSYS Simulation Start time
+% trnStopTime (1x1)    : TRNSYS Simulation Stop time
+% trnTimeStep (1x1)    : TRNSYS Simulation time step
+
+
+%options = simset('SrcWorkspace','current','Solver','ode15s');
+%out = sim('autoArrange',[trnTime, trnTime + trnTimeStep], options);
 % Do calculations here
-MyResults = MyInputs+12;
 
-% --- Set outputs ---
+%trnOutputs(1) = getdatasamples(out.simout1, [get(out.simout).Length]);
+%trnOutputs(2) = getdatasamples(out.simout1, [get(out.simout1).Length]);
+%trnOutputs(3) = getdatasamples(out.simout1, [get(out.simout2).Length]);
+%trnOutputs(4) = getdatasamples(out.simout1, [get(out.simout3).Length]);
 
-mFileErrorCode = 150;   % Beginning of setting outputs
-trnOutputs(1:nO) = MyResults;
-
+trnOutputs(1:nO) = ones(nO) * 5;
 mFileErrorCode = 0; % Tell TRNSYS that we reached the end of the m-file without errors
 return
