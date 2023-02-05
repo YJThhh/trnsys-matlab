@@ -1,0 +1,20 @@
+    %startTemp = 32;
+    tcw12 = 30;
+    tc = 50;
+    h3 = 800;
+%     tcw12 = 20;
+%     tc = 50;
+%     h3 =  260;  
+
+%     Te_in=12;
+%     Ge_in=14;
+%     Tc_in=35;
+%     Gc_in=8;
+
+
+
+options = simset('SrcWorkspace','current','Solver','ode45');
+out = sim('evaporator.slx');
+
+% tcw = getdatasamples(out.tcw12, [get(out.tcw12).Length]);
+

@@ -1,7 +1,7 @@
-% TwoInputs.m
+% SolarCollector.m
 % ----------------------------------------------------------------------------------------------------------------------
 %
-% Example M-file called by TRNSYS Type 155
+% Simple first-order solar collector model (M-file called by TRNSYS type 155)
 %
 % Data passed from / to TRNSYS 
 % ---------------------------- 
@@ -33,11 +33,25 @@
 %          variables like trnInfo, trnTime, etc. will be overwritten at each call. 
 %
 % ----------------------------------------------------------------------------------------------------------------------
-% This example implements a very simple component that returns the double of each input as the corresponding output.
-% The component is iterative (should be called at each TRNSYS call).
+% This example implements a very simple solar collector model. The component is iterative (should be called at each
+% TRNSYS call)
 %
+% trnInputs
+% ---------
 %
-% MKu, March 2006
+% trnInputs(1) : Ti, collector inlet temperature
+% trnInputs(2) : mdot, collector flowrate
+% trnInputs(3) : Tamb , ambient temperature
+% trnInputs(4) : Gt, solar radiation in the collector plane
+%
+% trnOutputs
+% ----------
+%
+% trnOutputs(1) : To, collector outlet temperature
+% trnOutputs(2) : mdot, collector flowrate
+% trnOutputs(3) : Quseful, useful energy gain
+%
+% MKu, October 2004
 % ----------------------------------------------------------------------------------------------------------------------
 
 
@@ -49,115 +63,53 @@
 mFileErrorCode = 100;    % Beginning of the m-file 
 
 
-% --- Process Inputs and global parameters -----------------------------------------------------------------------------
-% ----------------------------------------------------------------------------------------------------------------------
-
-nI = trnInfo(3);
-nO = trnInfo(6);
-
-if (nI ~= nO)
-    mFileErrorCode = 101; % mFileErrorCode = 101 in the list file will indicate that this component requires nI = nO
-    return
-end
-
-MyInputs = trnInputs(1:nI); % In case of multiple units the size of trnInputs will be the largest required size for all units
-
-mFileErrorCode = 110;    % After processing inputs
-
-
 % --- First call of the simulation: initial time step (no iterations) --------------------------------------------------
 % ----------------------------------------------------------------------------------------------------------------------
 % (note that Matlab is initialized before this at the info(7) = -1 call, but the m-file is not called)
 
-if ( (trnInfo(7) == 0) & (trnTime-trnStartTime < 1e-6) )  
+if ( (trnInfo(7) == 0) & (trnTime-trnStartTime < 1e-6) )   
     
-    % Do some initialization stuff, e.g. initialize history of the variables for plotting at the end of the simulation
-    % (uncomment lines if you wish to store variables) 
-    % nTimeSteps = (trnStopTime-trnStartTime)/trnTimeStep + 1;
-    % history.inputs = zeros(nTimeSteps,nI);
+    tcw12 = 70;
+    tc = 50;
+    h3 = 260;
+    tew12 = 20;
+    te = 5;
+    h1 =  410;  
 
-    % No return, normal calculations are also performed during this call
-    mFileErrorCode = 120    % After initialization call
-    
-end
+    Te_in=12;
+    Ge_in=14;
+    Tc_in=35;
+    Gc_in=8;
 
-
-% --- Very last call of the simulation (after the user clicks "OK") ----------------------------------------------------
-% ----------------------------------------------------------------------------------------------------------------------
-
-if ( trnInfo(8) == -1 )
-
-    mFileErrorCode = 1000;
-    
-    % Do stuff at the end of the simulation, e.g. calculate stats, draw plots, etc... 
-        
-    mFileErrorCode = 0; % Tell TRNSYS that we reached the end of the m-file without errors
-    return
-
-end
-
-
-% --- Post convergence calls: store values -----------------------------------------------------------------------------
-% ----------------------------------------------------------------------------------------------------------------------
-
-if (trnInfo(13) == 1)
-    
-    mFileErrorCode = 200;   % Beginning of a post-convergence call 
-
-    % This is the extra call that indicates that all Units have converged. You should do things like: 
-    % - calculate control signal that should be applied at next time step
-    % - Store history of variables
-
-    % history.inputs(iStep) = MyInput; 
-
-    % Note: If Calling Mode is set to 10, Matlab will not be called during iterative calls.
-    % In that case only this loop will be executed and things like incrementing the "iStep" counter should be done here
-    
-    mFileErrorCode = 0; % Tell TRNSYS that we reached the end of the m-file without errors
-    return  % Do not update outputs at this call
-
-end
-
-
-% --- All iterative calls ----------------------------------------------------------------------------------------------
-% ----------------------------------------------------------------------------------------------------------------------
-
-% --- If this is a first call in the time step, do things like incrementing step counters ---
-
-if ( trnInfo(7) == 0 )
-
-    mFileErrorCode = 130;   % Beginning of iterative call
-    % Nothing to do here
+    mFileErrorCode = 130;  
     
 end
 
-% --- Process Inputs ---
-
-mFileErrorCode = 140;   % Beginning of iterative call
 
 
-Te_in = MyInputs(1);
-Ge_in = MyInputs(2);
-Tc_in = MyInputs(3);
-Gc_in = MyInputs(4);
+options = simset('SrcWorkspace','current','Solver','ode45');
+out = sim('H_P.slx',[0, (trnTimeStep)*3600], options);
 
-% trnTime (1x1)        : simulation time 
-% trnInfo (15x1)       : TRNSYS info array
-% trnInputs (nIx1)     : TRNSYS inputs 
-% trnStartTime (1x1)   : TRNSYS Simulation Start time
-% trnStopTime (1x1)    : TRNSYS Simulation Stop time
-% trnTimeStep (1x1)    : TRNSYS Simulation time step
+tcw12 = getdatasamples(out.tcw12, [get(out.tcw12).Length]);
+tc = getdatasamples(out.tc, [get(out.tcw12).Length]);
+h3 = getdatasamples(out.h3, [get(out.tcw12).Length]);
+tew12 = getdatasamples(out.tew12, [get(out.tcw12).Length]);
+te = getdatasamples(out.te, [get(out.tcw12).Length]);
+h1 = getdatasamples(out.h1, [get(out.tcw12).Length]);
 
 
-%options = simset('SrcWorkspace','current','Solver','ode15s');
-%out = sim('autoArrange',[trnTime, trnTime + trnTimeStep], options);
-% Do calculations here
+trnOutputs(1) = getdatasamples(out.pc, [get(out.tcw12).Length]);
+trnOutputs(2) = getdatasamples(out.tcw2, [get(out.tcw12).Length]);
+trnOutputs(3) = getdatasamples(out.h3, [get(out.tcw12).Length]);
+trnOutputs(4) = getdatasamples(out.Qc, [get(out.tcw12).Length]);
+trnOutputs(5) = getdatasamples(out.tew2, [get(out.tcw12).Length]);
+trnOutputs(6) = getdatasamples(out.pe, [get(out.tcw12).Length]);
+trnOutputs(7) = getdatasamples(out.h1, [get(out.tcw12).Length]);
+trnOutputs(8) = getdatasamples(out.vd, [get(out.tcw12).Length]);
+trnOutputs(9) = getdatasamples(out.Qe, [get(out.tcw12).Length]);
 
-%trnOutputs(1) = getdatasamples(out.simout1, [get(out.simout).Length]);
-%trnOutputs(2) = getdatasamples(out.simout1, [get(out.simout1).Length]);
-%trnOutputs(3) = getdatasamples(out.simout1, [get(out.simout2).Length]);
-%trnOutputs(4) = getdatasamples(out.simout1, [get(out.simout3).Length]);
 
-trnOutputs(1:nO) = ones(nO) * 5;
+
+
 mFileErrorCode = 0; % Tell TRNSYS that we reached the end of the m-file without errors
 return
