@@ -1,33 +1,19 @@
 function outputArg = HeatPump_Init(inputArg)
     disp('call HeatPump_Init')
 
-    persistent tcw12
-    persistent tc
-    persistent h3
-    persistent tew12
-    persistent te
-    persistent h1
+    assignin('base','tcw12',70);
+    assignin('base','tc',50);
+    assignin('base','h3',260);
+    assignin('base','tew12',20);
+    assignin('base','te',5);
+    assignin('base','h1',410);
 
-    persistent Te_in
-    persistent Ge_in
-    persistent Tc_in
-    persistent Gc_in
+    assignin('base','Te_in',12);
+    assignin('base','Ge_in',14);
+    assignin('base','Tc_in',35);
+    assignin('base','Gc_in',8);
 
-
-    tcw12 = 70;
-    tc = 50;
-    h3 = 260;
-    tew12 = 20;
-    te = 5;
-    h1 =  410;  
-
-    Te_in=12;
-    Ge_in=14;
-    Tc_in=35;
-    Gc_in=8;
-
-
-    options = simset('SrcWorkspace','current','Solver','ode45');
+    options = simset('SrcWorkspace','base','Solver','ode45');
     out = sim('H_P.slx',[0, 0.01], options);
 
 
