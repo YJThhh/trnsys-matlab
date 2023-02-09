@@ -81,7 +81,7 @@ if __name__ == "__main__":
                 total_step += 1
                 action = agent.select_action(state)
                 state = heatPumpSimModel.Step(action)
-
+                done = False
                 if total_step > 100:
                     done = True
 

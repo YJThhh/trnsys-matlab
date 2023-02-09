@@ -1,0 +1,4 @@
+**/checksum**
+**/*.asv
+**/simulink_cache.xml
+**/varInfo.mat
