@@ -1,102 +1,96 @@
+import argparse
 import os.path
 import time
+from copy import deepcopy
+
+import matlab.engine
 
 import gym
 import numpy as np
 import torch
+
 from tqdm import tqdm
+from models.DDPG import DDPG
+from simulink.HeatPump import HeatPump
+from util import get_output_folder
 
-from models.PolicyGradientAgent import PolicyGradientAgent
-from models.PolicyGradientNetwork import PolicyGradientNetwork
-from util import fix
+if __name__ == "__main__":
 
-start = time.time()
+    parser = argparse.ArgumentParser(description='PyTorch on TORCS with Multi-modal')
 
-game = gym.make('LunarLander-v2')
+    parser.add_argument('--mode', default='train', type=str, help='support option: train/test')
+    parser.add_argument('--env', default='Pendulum-v1', type=str, help='open-ai gym environment')
+    parser.add_argument('--hidden1', default=400, type=int, help='hidden num of first fully connect layer')
+    parser.add_argument('--hidden2', default=300, type=int, help='hidden num of second fully connect layer')
+    parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
+    parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
+    parser.add_argument('--warmup', default=100, type=int, help='time without training but only filling the replay memory')
+    parser.add_argument('--discount', default=0.99, type=float, help='')
+    parser.add_argument('--bsize', default=64, type=int, help='minibatch size')
+    parser.add_argument('--rmsize', default=6000000, type=int, help='memory size')
+    parser.add_argument('--window_length', default=1, type=int, help='')
+    parser.add_argument('--tau', default=0.001, type=float, help='moving average for target network')
+    parser.add_argument('--ou_theta', default=0.15, type=float, help='noise theta')
+    parser.add_argument('--ou_sigma', default=0.2, type=float, help='noise sigma')
+    parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
+    parser.add_argument('--validate_episodes', default=20, type=int, help='how many episode to perform during validate experiment')
+    parser.add_argument('--max_episode_length', default=500, type=int, help='')
+    parser.add_argument('--validate_steps', default=2000, type=int, help='how many steps to perform a validate experiment')
+    parser.add_argument('--output', default='output', type=str, help='')
+    parser.add_argument('--debug', dest='debug', action='store_true')
+    parser.add_argument('--init_w', default=0.003, type=float, help='')
+    parser.add_argument('--train_iter', default=200000, type=int, help='train iters each timestep')
+    parser.add_argument('--epsilon', default=50000, type=int, help='linear decay of exploration policy')
+    parser.add_argument('--seed', default=-1, type=int, help='')
+    parser.add_argument('--resume', default='default', type=str, help='Resuming model path for testing')
+    # parser.add_argument('--l2norm', default=0.01, type=float, help='l2 weight decay') # TODO
+    # parser.add_argument('--cuda', dest='cuda', action='store_true') # TODO
 
-fix(game)
-print("*** observation 输出")
-print(game.observation_space)
-print("*** action_space 输出")
-print(game.action_space)
-initial_state = game.reset()
-print("*** 环境初始化完成")
-print(initial_state)
+    args = parser.parse_args()
+    args.output = get_output_folder(args.output, args.env)
+    if args.resume == 'default':
+        args.resume = 'output/{}-run0'.format(args.env)
 
-# 小实验
-# game.reset()
-#
-# img = plt.imshow(game.render(mode='rgb_array'))
-#
-# done = False
-# while not done:
-#     action = game.action_space.sample()
-#     observation, reward, done, _ = game.step(action)
-#
-#     img.set_data(game.render(mode='rgb_array'))
-#     display.display(plt.gcf())
-#     display.clear_output(wait=True)
+    start = time.time()
+    # Step 1: Init
+    heatPumpSimModel = HeatPump(os.getcwd() + "/../../matlab")
 
-network = PolicyGradientNetwork()
-agent = PolicyGradientAgent(network)
-#
-agent.network.train()  # 訓練前，先確保 network 處在 training 模式
-EPISODE_PER_BATCH = 5  # 每蒐集 5 個 episodes 更新一次 agent
-NUM_BATCH = 400  # 總共更新 400 次
-EXP_NAME = "exp_1"
+    agent = DDPG(9, 1, args)
 
-#
-avg_total_rewards, avg_final_rewards = [], []
+    EPISODE_PER_BATCH = 5  # 每蒐集 5 個 episodes 更新一次 agent
+    NUM_BATCH = 400  # 總共更新 400 次
+    EXP_NAME = "exp_1"
 
-prg_bar = range(NUM_BATCH)
-for batch in tqdm(prg_bar):
 
-    log_probs, rewards = [], []
-    total_rewards, final_rewards = [], []
+    avg_total_rewards, avg_final_rewards = [], []
 
-    # 蒐集訓練資料
-    for episode in range(EPISODE_PER_BATCH):
+    prg_bar = range(NUM_BATCH)
+    for batch in tqdm(prg_bar):
 
-        state = game.reset()
-        total_reward, total_step = 0, 0
-        seq_rewards = []
-        while True:
+        log_probs, rewards = [], []
+        total_rewards, final_rewards = [], []
 
-            action, log_prob = agent.sample(state)  # at , log(at|st)
-            next_state, reward, done, _ = game.step(action)
+        # 蒐集訓練資料
+        for episode in range(EPISODE_PER_BATCH):
 
-            log_probs.append(log_prob)  # [log(a1|s1), log(a2|s2), ...., log(at|st)]
-            # seq_rewards.append(reward)
-            state = next_state
-            total_reward += reward
-            total_step += 1
-            rewards.append(reward)  # 改這裡
-            # ! 重要 ！
-            # 現在的reward 的implementation 為每個時刻的瞬時reward, 給定action_list : a1, a2, a3 ......
-            #                                                       reward :     r1, r2 ,r3 ......
-            # medium：將reward調整成accumulative decaying reward, 給定action_list : a1,                         a2,                           a3 ......
-            #                                                       reward :     r1+0.99*r2+0.99^2*r3+......, r2+0.99*r3+0.99^2*r4+...... ,r3+0.99*r4+0.99^2*r5+ ......
-            # boss : implement DQN
-            if done:
-                final_rewards.append(reward)
-                total_rewards.append(total_reward)
-                break
+            heatPumpSimModel.Reset()
+            state = heatPumpSimModel.Init()
+            total_reward, total_step = 0, 0
 
-    # print(f"rewards looks like ", np.shape(rewards))
-    # print(f"log_probs looks like ", np.shape(log_probs))
-    # 紀錄訓練過程
-    avg_total_reward = sum(total_rewards) / len(total_rewards)
-    avg_final_reward = sum(final_rewards) / len(final_rewards)
-    avg_total_rewards.append(avg_total_reward)
-    avg_final_rewards.append(avg_final_reward)
-    print("avg_total_reward: " + str(avg_total_reward) + " avg_final_reward: " + str(avg_final_reward))
-    # prg_bar.set_description(f"Total: {avg_total_reward: 4.1f}, Final: {avg_final_reward: 4.1f}")
+            while True:
+                total_step += 1
+                action = agent.select_action(state)
+                state = heatPumpSimModel.Step(action)
 
-    # 更新網路
-    # rewards = np.concatenate(rewards, axis=0)
-    rewards = (rewards - np.mean(rewards)) / (np.std(rewards) + 1e-9)  # 將 reward 正規標準化
-    agent.learn(torch.stack(log_probs), torch.from_numpy(rewards))
-    # print("logs prob looks like ", torch.stack(log_probs).size())
-    # print("torch.from_numpy(rewards) looks like ", torch.from_numpy(rewards).size())
-save_path = os.path.join('./experiments', EXP_NAME)
-agent.save(save_path)
+                if total_step > 100:
+                    done = True
+
+                reward = 0
+                agent.observe(reward, deepcopy(state), done)
+
+                if total_step > args.warmup:
+                    agent.update_policy()
+
+
+    save_path = os.path.join('./experiments', EXP_NAME)
+    agent.save_model(save_path)
