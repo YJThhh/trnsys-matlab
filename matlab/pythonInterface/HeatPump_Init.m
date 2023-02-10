@@ -1,5 +1,5 @@
 function outputArg = HeatPump_Init(inputArg)
-    disp('call HeatPump_Init')
+    %disp('call HeatPump_Init')
 
     assignin('base','tcw12',70);
     assignin('base','tc',50);

@@ -1,5 +1,5 @@
 function outputArg = HeatPump_Step(inputArg)
-    disp('call HeatPump_Step')
+    %disp('call HeatPump_Step')
     options = simset('SrcWorkspace','base','Solver','ode45');
     out = sim('H_P.slx',[0, 100], options);
     
