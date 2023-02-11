@@ -2,17 +2,19 @@ import argparse
 import os.path
 import random
 import time
+import os.path as osp
 from copy import deepcopy
 from torch.utils.tensorboard import SummaryWriter
 import matlab.engine
-
+import logging
 import numpy as np
 import torch
-
 from tqdm import tqdm
+
 from models.DDPG import DDPG
 from simulink.HeatPump import HeatPump
-from util import get_output_folder
+from tools.file import create_all_dirs
+from util import get_output_folder, setup_logger
 
 if __name__ == "__main__":
 
@@ -24,7 +26,8 @@ if __name__ == "__main__":
     parser.add_argument('--hidden2', default=300, type=int, help='hidden num of second fully connect layer')
     parser.add_argument('--rate', default=0.001, type=float, help='learning rate')
     parser.add_argument('--prate', default=0.0001, type=float, help='policy net learning rate (only for DDPG)')
-    parser.add_argument('--warmup', default=1, type=int, help='time without training but only filling the replay memory')
+    parser.add_argument('--warmup', default=1, type=int,
+                        help='time without training but only filling the replay memory')
     parser.add_argument('--discount', default=0.99, type=float, help='')
 
     parser.add_argument('--bsize', default=2048, type=int, help='minibatch size')
@@ -34,9 +37,11 @@ if __name__ == "__main__":
     parser.add_argument('--ou_theta', default=0.15, type=float, help='noise theta')
     parser.add_argument('--ou_sigma', default=0.2, type=float, help='noise sigma')
     parser.add_argument('--ou_mu', default=0.0, type=float, help='noise mu')
-    parser.add_argument('--validate_episodes', default=20, type=int, help='how many episode to perform during validate experiment')
+    parser.add_argument('--validate_episodes', default=20, type=int,
+                        help='how many episode to perform during validate experiment')
     parser.add_argument('--max_episode_length', default=500, type=int, help='')
-    parser.add_argument('--validate_steps', default=2000, type=int, help='how many steps to perform a validate experiment')
+    parser.add_argument('--validate_steps', default=2000, type=int,
+                        help='how many steps to perform a validate experiment')
     parser.add_argument('--output', default='output', type=str, help='')
     parser.add_argument('--debug', dest='debug', action='store_true')
     parser.add_argument('--init_w', default=0.003, type=float, help='')
@@ -49,11 +54,23 @@ if __name__ == "__main__":
     # parser.add_argument('--cuda', dest='cuda', action='store_true') # TODO
     args = parser.parse_args()
 
-    # Step 1: Init
+    # Step 1: Init logger and dir
     start = time.time()
-    heatPumpSimModel = HeatPump(os.getcwd() + "/../../matlab")
+    experiments_root = osp.join(osp.abspath(osp.join(__file__, osp.pardir)), '../experiments',
+                                args.exp_name)
+    create_all_dirs(experiments_root)
+    setup_logger('base', experiments_root, 'train_{}_'.format(start) + args.exp_name, level=logging.INFO,
+                 screen=False, tofile=True)
+    logger = logging.getLogger('base')
+    logger.info('exp {} start!'.format(start, args.exp_name))
+    logger.info('config: {}'.format(args))
+
+    # Step 2: Init simulink model and ddpg
+    heatPumpSimModel = HeatPump(os.getcwd() + "/../../../matlab")
+    logger.info('init HeatPump simulink model success!'.format(start, args.exp_name))
     agent = DDPG(9, 1, args)
-    #writer = SummaryWriter()
+    logger.info('init DDPG success!'.format(start, args.exp_name))
+    # writer = SummaryWriter()
     prg_bar = range(args.bsize)
 
     x_set = random.random() * 15 + 8
@@ -64,10 +81,10 @@ if __name__ == "__main__":
     state = None
 
     for batch in tqdm(prg_bar):
-        if episode_steps >= args.max_episode_steps -1:
+        if episode_steps >= args.max_episode_steps - 1:
             done = True
 
-        if(state == None):
+        if (state == None):
             heatPumpSimModel.Reset()
             state = heatPumpSimModel.Init()
 
@@ -82,9 +99,8 @@ if __name__ == "__main__":
         episode_steps += 1
         episode_reward += reward
 
-
-        if done: # end of episode
-            #writer.add_scalar('episode_reward', episode_reward, episode)
+        if done:  # end of episode
+            # writer.add_scalar('episode_reward', episode_reward, episode)
             print("done, episode_reward:" + str(episode_reward))
             agent.memory.append(
                 state,
@@ -98,6 +114,5 @@ if __name__ == "__main__":
             episode_steps = 0
             episode_reward = 0.
 
-
-    save_path = os.path.join('./experiments', args.exp_name)
+    save_path = os.path.join('../experiments', args.exp_name)
     agent.save_model(save_path)
